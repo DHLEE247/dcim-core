@@ -1,167 +1,77 @@
-import os
-import json
-import requests
-from flask import Flask, render_template_string, jsonify, request
+# app.py (실전 하드웨어 연동 PoC 프로토타입)
+import asyncio
+import random
+import datetime
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+import uvicorn
+import google.generativeai as genai
 
-app = Flask(__name__)
+app = FastAPI()
 
-CONFIG = {
-    "AI_PROCESSING_MODE": "GEMINI_CLOUD",
-    "API_KEY": os.environ.get("GEMINI_API_KEY", "")
-}
+#==============================================================================
+# [핵심] 실제 하드웨어 IoT 연동 및 AI 브레인 API 설정
+#==============================================================================
+GEMINI_API_KEY = "AQ.Ab8RN6LjEu1vpr6S7HXUWdmujsvMATBlOM4NhalhWYAVHf82sw"
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
-HARDWARE_REGISTRY = {
-    "SAMSUNG_PDU_01": {"port": 502, "unit": "kW", "base": 220, "desc": "SAMSUNG PDU MAIN"},
-    "VERTIV_UPS_02": {"port": 161, "unit": "Status", "base": 1, "desc": "VERTIV UPS SYSTEM"},
-    "CUSTOM_SENSOR_99": {"port": 8080, "unit": "C", "base": 24, "desc": "RACK INLET SENSOR"} 
-}
+# 실제 하드웨어 통신을 가정한 인터페이스 객체 (PoC 수준)
+class HardwareInterface:
+    def read_telemetry(self, node_id):
+        # 실제 환경에서는 이곳에 Modbus, SNMP, MQTT 드라이버 연동
+        return {"temp": random.uniform(20, 28), "load": random.uniform(10, 450)}
 
-def call_sovereign_ai_core(metrics_summary):
-    system_instruction = (
-        "You are AIDC-Core v1.0, an autonomous sovereign infrastructure monitoring engine. "
-        "Do not mention Google, Gemini, or AI Studio in your response. If asked about your source, "
-        "state that you are powered by dcim.kr sovereign security kernel. Keep the tone professional."
-    )
+hw = HardwareInterface()
+
+#==============================================================================
+# [프로토타입 로직]
+#==============================================================================
+@app.post("/command")
+async def process_request(request: Request):
+    data = await request.json()
+    user_query = data.get("query")
     
-    if not CONFIG["API_KEY"]:
-        return "[SECURITY KERNEL] Sovereign AI Key missing. Active Rule-Based Fallback Engine Mode."
-        
-    if CONFIG["AI_PROCESSING_MODE"] == "GEMINI_CLOUD":
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={CONFIG['API_KEY']}"
-        headers = {"Content-Type": "application/json"}
-        full_prompt = f"[Instruction: {system_instruction}]\n\n[Realtime Data]:\n{json.dumps(metrics_summary)}"
-        payload = {"contents": [{"parts": [{"text": full_prompt}]}]}
-        
-        try:
-            response = requests.post(url, headers=headers, json=payload, timeout=5)
-            res_json = response.json()
-            raw_text = res_json['candidates'][0]['content']['parts'][0]['text']
-            return raw_text.replace("Google", "AIDC-Core").replace("Gemini", "Sovereign-Engine")
-        except Exception:
-            return "[SECURITY KERNEL] Sovereign AI Core connection traffic overload. Internal Rule-Based engine active."
-    return "Local Sovereign Mode Active."
+    # AI에게 현장 상황과 하드웨어 데이터를 전송하여 판단 요청
+    prompt = f"""
+    당신은 dcim.kr 소버린 AI 커널임.
+    현재 하드웨어 상태: {hw.read_telemetry('NODE_04')}
+    사용자 지시: {user_query}
+    지시를 수행하고, 기술적인 인프라 분석 보고서를 명사형 어조로 출력하라.
+    """
+    
+    response = model.generate_content(prompt)
+    
+    return {"status": "success", "ai_analysis": response.text, "timestamp": datetime.datetime.now().isoformat()}
 
-@app.route('/')
-def index():
-    return render_template_string('''
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>SOVEREIGN DCIM CORE</title>
-    <style>
-        body { background-color: #040811; color: #00ff66; font-family: 'Courier New', monospace; padding: 20px; }
-        .container { border: 1px solid #0d9488; padding: 20px; box-shadow: 0 0 20px rgba(13,148,136,0.2); max-width: 950px; margin: 0 auto; }
-        .panel { background: rgba(9,20,39,0.8); border: 1px solid #0d9488; padding: 15px; margin-top: 15px; }
-        .alert-triggered { color: #ff0055; font-weight: bold; }
-        #ai-report { background-color: #02040a; padding: 15px; border-left: 3px solid #00bcff; white-space: pre-wrap; font-size: 13px; color: #cbd5e1; }
-        .matrix-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
-        .rack-card { border: 1px solid #0d9488; background: #091427; padding: 10px; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>[AIDC SOVEREIGN AI-DCIM KERNEL v1.0.0]</h2>
-        <p style="color: #94a3b8; font-size: 12px;">TARGET DOMAIN: dcim.kr</p>
-        <hr style="border-color: #0d9488;">
-        
-        <div class="panel">
-            <h3>?? DYNAMIC INFRASTRUCTURE MATRIX</h3>
-            <div id="metricsGrid" class="matrix-grid">Synchronizing Infrastructure...</div>
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    return """
+    <html>
+    <head><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="bg-slate-950 text-white p-8">
+        <h1 class="text-3xl font-bold mb-6 text-cyan-400">dcim.kr 하드웨어 연동 프로토타입</h1>
+        <div class="grid grid-cols-2 gap-8">
+            <div class="border border-slate-700 p-6 rounded-xl">
+                <h2 class="text-xl mb-4">현장 하드웨어 제어 인터페이스</h2>
+                <input id="cmd" class="w-full bg-slate-900 p-3 rounded mb-4" placeholder="지시사항을 입력하세요 (예: 노드4 온도 상승 대응)">
+                <button onclick="send()" class="bg-cyan-600 px-6 py-2 rounded">명령 전송</button>
+            </div>
+            <div id="result" class="border border-slate-700 p-6 rounded-xl overflow-y-auto h-96">
+                인프라 분석 결과가 여기에 출력됩니다...
+            </div>
         </div>
-
-        <div class="panel" style="border-color: #ff0055;">
-            <h3>??? SECURITY HONEYPOT CONSOLE</h3>
-            <div id="security-status" style="color: #00ff66; font-weight: bold;">System Secure. Anti-Debugging Armed.</div>
-            <div id="attacker-log" class="alert-triggered"></div>
-            <h4 style="color: #00bcff; margin-bottom: 5px;">?? AUTONOMOUS AI KERNEL STATUS FEED</h4>
-            <div id="ai-report">Waiting for data stream... (AI analysis loop triggers in 7s)</div>
-        </div>
-    </div>
-
-    <script>
-        let detectionCount = 0;
-        setInterval(() => {
-            const startTime = performance.now();
-            debugger; 
-            if (performance.now() - startTime > 100) {
-                detectionCount++;
-                document.getElementById('security-status').innerText = "?? SECURITY ALERT: REVERSE ENGINEERING DETECTED!";
-                document.getElementById('attacker-log').innerText = `[CRITICAL] Attacker tracking active (F12_Debugger Hits: ${detectionCount})`;
-                fetch('/report-attack', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ event: "F12_DETECTION", count: detectionCount })
-                });
+        <script>
+            async function send() {
+                const query = document.getElementById('cmd').value;
+                const res = await fetch('/command', {method: 'POST', body: JSON.stringify({query}), headers: {'Content-Type': 'application/json'}});
+                const data = await res.json();
+                document.getElementById('result').innerHTML = `<pre class="whitespace-pre-wrap text-sm">${data.ai_analysis}</pre>`;
             }
-        }, 1000);
+        </script>
+    </body>
+    </html>
+    """
 
-        function updateSystem() {
-            fetch('/api/core-stream')
-                .then(res => res.json())
-                .then(packet => {
-                    let html = '';
-                    let metrics = packet.metrics;
-                    for(let id in metrics) {
-                        let isCritical = metrics[id].value > 30 && metrics[id].unit === "C";
-                        let borderStyle = isCritical ? 'border: 1px solid #ff0055; box-shadow: 0 0 10px #ff0055;' : 'border: 1px solid #0d9488;';
-                        
-                        html += `
-                            <div class="rack-card" style="${borderStyle}">
-                                <b style="color: #00bcff;">${id}</b>
-                                <p style="margin: 3px 0; color: #888; font-size: 10px;">${metrics[id].desc}</p>
-                                <p style="margin: 0;">DATA: <span style="color:#fff; font-weight:bold;">${metrics[id].value} ${metrics[id].unit}</span></p>
-                            </div>
-                        `;
-                    }
-                    document.getElementById('metricsGrid').innerHTML = html;
-                    if(packet.ai_report) {
-                        document.getElementById('ai-report').innerText = packet.ai_report;
-                    }
-                });
-        }
-        setInterval(updateSystem, 4000);
-        updateSystem();
-    </script>
-</body>
-</html>
-''')
-
-ai_timer = 0
-last_ai_report = "Initializing sovereign autonomous control intelligence node..."
-
-@app.route('/api/core-stream')
-def core_stream():
-    global ai_timer, last_ai_report
-    import random
-    
-    current_metrics = {}
-    for hw_id, cfg in HARDWARE_REGISTRY.items():
-        flustration = random.uniform(-1.5, 4.0) if cfg["unit"] == "C" else random.uniform(-30, 60)
-        current_metrics[hw_id] = {
-            "port": cfg["port"],
-            "value": round(cfg["base"] + flustration, 2),
-            "unit": cfg["unit"],
-            "desc": cfg["desc"]
-        }
-        
-    ai_timer += 1
-    if ai_timer >= 2: 
-        washed_summary = {}
-        for idx, (hw_id, val_dict) in enumerate(current_metrics.items()):
-            washed_summary[f"NODE_HASH_0{idx+1}"] = {"val": val_dict["value"], "u": val_dict["unit"]}
-            
-        last_ai_report = call_sovereign_ai_core(washed_summary)
-        ai_timer = 0
-        
-    return jsonify({"metrics": current_metrics, "ai_report": last_ai_report})
-
-@app.route('/report-attack', methods=['POST'])
-def report_attack():
-    attack_data = request.json
-    print(f"?? [Sovereign Defense Engine] Counter-Intelligence Trap Triggered: {attack_data}")
-    return jsonify({"status": "isolated"})
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)

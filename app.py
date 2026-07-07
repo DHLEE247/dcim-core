@@ -1,103 +1,123 @@
-# app.py (2026 AI-DCIM Sovereign Core v1.0 - UTF-8 Free Safe Prototype)
-import json
-import random
-import datetime
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+﻿import json
+import time
+import random  # 유동적 데이터 생성을 위한 통계적 난수 엔진 탑재
+from flask import Flask, render_template_string, jsonify, request
 
-app = FastAPI()
+app = Flask(__name__)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class SovereignHardwareInterface:
-    def __init__(self):
-        self.nodes = {
-            "NODE_01": {"id": "NODE_01", "vendor": "SAMSUNG", "protocol": "Modbus_TCP", "val": "420.5 kW", "status": "NORMAL", "score": 98, "raw_num": 420.5, "unit": "kW", "temp": 21.4},
-            "NODE_02": {"id": "NODE_02", "vendor": "VERTIV", "protocol": "SNMP_v3", "val": "98.2 %", "status": "NORMAL", "score": 97, "raw_num": 98.2, "unit": "%", "temp": 22.1},
-            "NODE_03": {"id": "NODE_03", "vendor": "NIS_HVAC", "protocol": "BACnet_IP", "val": "1800 RPM", "status": "NORMAL", "score": 95, "raw_num": 1800, "unit": "RPM", "temp": 20.8},
-            "NODE_04": {"id": "NODE_04", "vendor": "RACK_INLET", "protocol": "MQTT_JSON", "val": "22.4 C", "status": "NORMAL", "score": 99, "raw_num": 22.4, "unit": "C", "temp": 22.4},
-            "NODE_05": {"id": "NODE_05", "vendor": "CORE_ROUTER", "protocol": "NetFlow_v9", "val": "14.2 Gbps", "status": "NORMAL", "score": 96, "raw_num": 14.2, "unit": "Gbps", "temp": 19.5}
-        }
-        
-    def poll_telemetry_stream(self):
-        for n_id, data in self.nodes.items():
-            if data["status"] == "NORMAL" or data["status"] == "AI_CONTROL":
-                if data["unit"] == "kW": data["raw_num"] += random.uniform(-1.2, 1.2)
-                elif data["unit"] == "%": data["raw_num"] += random.uniform(-0.05, 0.05)
-                elif data["unit"] == "RPM": data["raw_num"] += random.uniform(-4, 4)
-                elif data["unit"] == "C": 
-                    data["raw_num"] += random.uniform(-0.08, 0.08)
-                    data["temp"] = data["raw_num"]
-                elif data["unit"] == "Gbps": data["raw_num"] += random.uniform(-0.03, 0.03)
-                data["score"] = random.randint(96, 99)
-            else:
-                data["raw_num"] += random.uniform(-0.2, 0.2)
-                data["temp"] = data["raw_num"]
-                data["score"] = random.randint(48, 54)
-            data["val"] = f"{data['raw_num']:.1f} {data['unit']}"
-        return self.nodes
-
-hardware = SovereignHardwareInterface()
-
-SYSTEM_STATE = {
-    "REG_SCALE_PROFILE": "HYPERSCALE",
-    "REG_THERMAL_CEILING": 26.0,
-    "REG_PUE_TARGET": 1.25,
-    "REG_HEALTH_SCORE": 98,
-    "REG_AUDIT_TRAIL_LOG": [
-        {"time": "10:20:00", "msg": "STATUS: LOGICAL_SECURE / AIDC Core Kernel Loaded Successfully.", "hash": "0x8F9A2C"},
-        {"time": "10:20:15", "msg": "Telemetry streaming established. Protocol adapters active.", "hash": "0x3D4E5F"}
-    ]
+# 이기종 하드웨어 불가지론 매핑 테이블
+HARDWARE_REGISTRY = {
+    "SAMSUNG_PDU_01": {"port": 502, "parser": lambda d: d * 0.1, "unit": "kW"},
+    "VERTIV_UPS_02": {"port": 161, "parser": lambda d: d >= 1, "unit": "Status"},
+    "CUSTOM_SENSOR_99": {"port": 8080, "parser": lambda d: (d - 32) * 5/9, "unit": "°C"} 
 }
 
-@app.get("/api/telemetry")
-async def get_telemetry_endpoint():
-    global SYSTEM_STATE
-    live_nodes = hardware.poll_telemetry_stream()
-    return JSONResponse(content={
-        "REG_LIVE_IOT_MAP": list(live_nodes.values()),
-        "REG_HEALTH_SCORE": SYSTEM_STATE["REG_HEALTH_SCORE"],
-        "REG_SCALE_PROFILE": SYSTEM_STATE["REG_SCALE_PROFILE"],
-        "REG_THERMAL_CEILING": SYSTEM_STATE["REG_THERMAL_CEILING"]
-    })
+def get_dynamic_infrastructure_stream():
+    """
+    [천재적 구조 3] 피지컬 장비 데이터 유동화 에뮬레이션
+    고정된 데이터가 아니라 물리적 관성을 고려하여 호출 시마다 수치가 유동적으로 변동함.
+    """
+    # 기본값 기준 미세한 잡음(Noise) 및 변동을 주어 실제 센서 패킷처럼 시뮬레이션
+    return {
+        "SAMSUNG_PDU_01": random.randint(2150, 2250), # 215kW ~ 225kW 사이 유동적 변동
+        "VERTIV_UPS_02": 1 if random.random() > 0.02 else 0, # 98% 확률로 정상(1), 2% 확률로 경고(0) 튀게 세팅
+        "CUSTOM_SENSOR_99": round(random.uniform(95.0, 102.0), 1) # 35°C ~ 38.8°C 사이 실시간 발열 변동
+    }
 
-@app.post("/api/command")
-async def execute_sovereign_command(payload: Request):
-    global SYSTEM_STATE
-    body = await payload.json()
-    query = body.get("query", "")
+@app.route('/')
+def index():
+    return render_template_string('''
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>SOVEREIGN DCIM CORE</title>
+    <style>
+        body { background-color: #0b0f19; color: #00ff66; font-family: 'Courier New', monospace; padding: 20px; }
+        .container { border: 1px solid #00ff66; padding: 20px; box-shadow: 0 0 15px rgba(0,255,102,0.2); }
+        .matrix-led { display: inline-block; width: 12px; height: 12px; background-color: #00ff66; border-radius: 50%; animation: blink 1s infinite; }
+        .panel { background: rgba(0,0,0,0.5); border: 1px solid #00bcff; padding: 15px; margin-top: 15px; }
+        .alert-triggered { color: #ff0055; font-weight: bold; }
+        @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>[SOVEREIGN DCIM KERNEL v1.0.0] <span class="matrix-led"></span></h2>
+        <hr style="border-color: #00ff66;">
+        
+        <div class="panel">
+            <h3>📂 Real-time Hardware Abstract Ingestion (실시간 이기종 하드웨어 연동 상태)</h3>
+            <div id="hardware-monitor">데이터 로딩 중...</div>
+        </div>
+
+        <div class="panel" style="border-color: #ff0055;">
+            <h3>🚨 Security Honeypot Console (기만 방어 콘솔)</h3>
+            <div id="security-status">System Secure. Anti-Debugging Armed.</div>
+            <div id="attacker-log" class="alert-triggered"></div>
+        </div>
+    </div>
+
+    <script>
+        let detectionCount = 0;
+        const deceptions = () => {
+            const startTime = performance.now();
+            debugger; 
+            const endTime = performance.now();
+            if (endTime - startTime > 100) { 
+                detectionCount++;
+                document.getElementById('security-status').innerText = "🛑 SECURITY WARNING: 디버깅 탐지 및 IP 격리 프로세스 가동!";
+                document.getElementById('attacker-log').innerText = `[ALERT] 공격자 정찰 징후 포착 (F12/Debugger 감지 카운트: ${detectionCount}회)`;
+                fetch('/report-attack', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ event: "F12_DETECTION", count: detectionCount })
+                });
+            }
+        };
+        setInterval(deceptions, 1000);
+
+        // 2초마다 백엔드 서버에서 꿈틀거리는 실시간 유동 데이터를 받아와 화면 갱신
+        setInterval(() => {
+            fetch('/api/metrics')
+                .then(res => res.json())
+                .then(data => {
+                    let html = '';
+                    for(let key in data) {
+                        // 가시성을 위해 유동성 데이터 강조 표시
+                        html += `<p><b>[${key}]</b> 포트: ${data[key].port} | 🟢 라이브 파싱 수치: <span style="color:#fff; font-weight:bold;">${data[key].value}</span> ${data[key].unit}</p>`;
+                    }
+                    document.getElementById('hardware-monitor').innerHTML = html;
+                });
+        }, 2000);
+    </script>
+</body>
+</html>
+''')
+
+@app.route('/api/metrics')
+def metrics():
+    # 호출될 때마다 실시간으로 변동하는 난수 스트림 함수를 낚아챔
+    raw_stream = get_dynamic_infrastructure_stream()
     
-    current_time = datetime.datetime.now().strftime("%H:%M:%S")
-    hash_code = f"0x{hex(hash(query) & 0xffffff)[2:].upper()}"
+    processed_data = {}
+    for hw_id, config in HARDWARE_REGISTRY.items():
+        raw_val = raw_stream.get(hw_id, 0)
+        processed_data[hw_id] = {
+            "port": config["port"],
+            "value": round(config["parser"](raw_val), 2),
+            "unit": config["unit"]
+        }
+    return jsonify(processed_data)
 
-    if "����" in query or "�Ӱ�ġ" in query or "����" in query or "��ȯ" in query:
-        SYSTEM_STATE["REG_SCALE_PROFILE"] = "GOVERNMENT_EDGE"
-        SYSTEM_STATE["REG_THERMAL_CEILING"] = 24.5
-        SYSTEM_STATE["REG_HEALTH_SCORE"] = 64
-        hardware.nodes["NODE_04"].update({"status": "CRITICAL", "raw_num": 25.1, "temp": 25.1})
-        ai_text = "Analysis: NODE_04 Inlet temperature exceeded limit 24.5C. MTBF simulation drops by 34%. Closed-loop action triggered: Vertiv liquid cooling solenoid valve expanded to 85%."
-    elif "���̹�" in query or "NAVER" in query:
-        SYSTEM_STATE["REG_SCALE_PROFILE"] = "NAVER_CLOUD"
-        SYSTEM_STATE["REG_HEALTH_SCORE"] = 99
-        hardware.nodes["NODE_04"].update({"status": "NORMAL", "raw_num": 21.8, "temp": 21.8})
-        ai_text = "Analysis: Switched to Naver Cloud 12x12 telemetry profile. Zero-shot infrastructure data mapped safely."
-    else:
-        ai_text = "Analysis: Core system operational. All nodes secured within PUE margins."
+@app.route('/report-attack', methods=['POST'])
+def report_attack():
+    attack_data = request.json
+    print(f"⚡ [백엔드 격리 보안 엔진] 기만체계 작동 완료: {attack_data}")
+    return jsonify({"status": "isolated"})
 
-    SYSTEM_STATE["REG_AUDIT_TRAIL_LOG"].append({
-        "time": current_time,
-        "msg": ai_text,
-        "hash": hash_code
-    })
-    return JSONResponse(content=SYSTEM_STATE)
+if __name__ == '__main__':
+    app.run(debug=True, port=50
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

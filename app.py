@@ -117,7 +117,7 @@ def report_attack():
     return jsonify({"status": "isolated"})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=50
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    import os
+    # 클라우드 환경 변수에서 포트를 동적으로 받아오고, 없으면 기본 5000번 가동
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOVEREIGN AI-DCIM KERNEL v1.0.0</title>
+    <style>
+        :root {
+            --bg-color: #0a0f1d;
+            --panel-bg: #131c31;
+            --neon-green: #00ff66;
+            --neon-blue: #00e5ff;
+            --neon-red: #ff3366;
+            --text-main: #e2e8f0;
+            --text-muted: #64748b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* 헤더 스타일 */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--neon-green);
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .logo-area { display: flex; align-items: center; gap: 15px; }
+        .pulse-dot {
+            width: 12px; height: 12px; background-color: var(--neon-green);
+            border-radius: 50%; box-shadow: 0 0 10px var(--neon-green);
+            animation: pulse 1.5s infinite;
+        }
+        h1 { font-size: 24px; color: var(--neon-green); letter-spacing: 2px; }
+        .sys-status { font-size: 12px; color: var(--text-muted); text-align: right; }
+
+        /* 메인 레이아웃: 2분할 웅장한 그리드 */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid #223458;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .panel-title {
+            font-size: 16px; color: var(--neon-blue); margin-bottom: 20px;
+            display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #223458; padding-bottom: 8px;
+        }
+
+        /* 하드웨어 메트릭 아이템 스타일 */
+        .metric-item { margin-bottom: 20px; }
+        .metric-info { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
+        .metric-progress-bg {
+            width: 100%; height: 8px; background-color: #1e293b; border-radius: 4px; overflow: hidden;
+        }
+        .metric-progress-fill {
+            height: 100%; width: 0%; transition: width 0.5s ease-in-out;
+        }
+        .fill-green { background: linear-gradient(90deg, #00ff66, #00ffaa); box-shadow: 0 0 8px var(--neon-green); }
+        .fill-blue { background: linear-gradient(90deg, #00e5ff, #00a2ff); box-shadow: 0 0 8px var(--neon-blue); }
+
+        /* AI 리포트 스트리밍 존 */
+        #ai-log-container {
+            height: 250px; overflow-y: auto; background-color: #070b14;
+            border: 1px solid #1e293b; border-radius: 4px; padding: 15px;
+            font-size: 13px; line-height: 1.6; color: #a1a1aa;
+        }
+        .ai-log-entry { margin-bottom: 10px; border-left: 2px solid var(--neon-blue); padding-left: 8px; }
+
+        /* 하단 허니팟 보안 패널 */
+        .honeypot-panel { border: 1px solid rgba(255, 51, 102, 0.3); }
+        .honeypot-title { color: var(--neon-red); border-bottom: 1px solid rgba(255, 51, 102, 0.2); }
+        #security-log { font-size: 13px; color: var(--neon-red); }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 102, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 102, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 102, 0); }
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #223458; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <div class="pulse-dot"></div>
+            <h1>SOVEREIGN AI-DCIM KERNEL</h1>
+        </div>
+        <div class="sys-status">
+            <div>SECURE CORE LAYER ACTIVE</div>
+            <div id="live-clock">LOADING TIME...</div>
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <div class="panel">
+            <div class="panel-title">?? Real-time Hardware Ingestion (이기종 장비 연동망)</div>
+            
+            <div class="metric-item">
+                <div class="metric-info">
+                    <span>[CUSTOM_SENSOR_99] 인클로저 주위 온도</span>
+                    <span id="val-sensor" style="color: var(--neon-green)">0 °C</span>
+                </div>
+                <div class="metric-progress-bg">
+                    <div id="bar-sensor" class="metric-progress-fill fill-green"></div>
+                </div>
+            </div>
+
+            <div class="metric-item">
+                <div class="metric-info">
+                    <span>[SAMSUNG_PDU_01] 총 고부하 전력량</span>
+                    <span id="val-pdu" style="color: var(--neon-blue)">0 kW</span>
+                </div>
+                <div class="metric-progress-bg">
+                    <div id="bar-pdu" class="metric-progress-fill fill-blue"></div>
+                </div>
+            </div>
+
+            <div class="metric-item">
+                <div class="metric-info">
+                    <span>[VERTIV_UPS_02] 인버터 배터리 효율</span>
+                    <span id="val-ups" style="color: var(--neon-green)">0 %</span>
+                </div>
+                <div class="metric-progress-bg">
+                    <div id="bar-ups" class="metric-progress-fill fill-green"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">?? Autonomous AI Kernel Report (자율 관제 리포트)</div>
+            <div id="ai-log-container">
+                <div class="ai-log-entry">> 소버린 커널 인스턴스 초기화 완료. 이기종 텔레메트리 패킷 추적을 시작합니다...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel honeypot-panel">
+        <div class="panel-title honeypot-title">?? Security Honeypot Console (기만 방어 체계)</div>
+        <div id="security-log">System Secure. Anti-Debugging & Sandbox Evasion Countermeasures Armed.</div>
+    </div>
+
+    <script>
+        // 시간 실시간 동기화
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('live-clock').innerText = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+        }
+        setInterval(updateClock, 1000);
+
+        // 2초마다 백엔드 데이터 폴링 및 애니메이션 매핑
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/metrics');
+                const data = await res.json();
+                
+                // 데이터 숫자 추출 (안전 장치 포함)
+                const sensorVal = parseInt(data.sensor.match(/\d+/)[0]);
+                const pduVal = parseFloat(data.pdu.match(/[\d.]+/)[0]);
+                const upsVal = parseInt(data.ups.match(/\d+/)[0]);
+
+                // 텍스트 업데이트
+                document.getElementById('val-sensor').innerText = data.sensor;
+                document.getElementById('val-pdu').innerText = data.pdu;
+                document.getElementById('val-ups').innerText = `${upsVal} %`;
+
+                // 프로gress 바 애니메이션 제어 (최대치 대비 백분율 환산)
+                document.getElementById('bar-sensor').style.width = `${(sensorVal / 60) * 100}%`;
+                document.getElementById('bar-pdu').style.width = `${(pduVal / 300) * 100}%`;
+                document.getElementById('bar-ups').style.width = `${upsVal}%`;
+
+                // AI 진단 로그 실시간 추가
+                const logContainer = document.getElementById('ai-log-container');
+                const newLog = document.createElement('div');
+                newLog.className = 'ai-log-entry';
+                newLog.innerText = `> [AI 분석] ${data.ai_analysis}`;
+                logContainer.appendChild(newLog);
+                logContainer.scrollTop = logContainer.scrollHeight;
+
+            } catch (e) {
+                console.error("관제 통신 노이즈 발생:", e);
+            }
+        }, 2000);
+
+        // 개발자 도구 기만 시 탐지 시스템
+        let devtools = function() {};
+        devtools.toString = function() {
+            document.getElementById('security-log').innerText = "[ALERT] 정찰 자원(Developer Tools) 감지! 커널 세션 추적 세션을 역격리 조치합니다.";
+        }
+        console.log('%c', devtools);
+    </style>
+</body>
+</html>

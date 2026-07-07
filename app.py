@@ -121,3 +121,10 @@ if __name__ == '__main__':
     # 클라우드 환경 변수에서 포트를 동적으로 받아오고, 없으면 기본 5000번 가동
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
+@app.after_request
+def allow_gabia_frame(response):
+    # 가비아 고정 포워딩(iframe)이 내 대시보드를 감싸서 렌더링할 수 있도록 보안 해제
+    response.headers.remove('X-Frame-Options')
+    response.headers["Content-Security-Policy"] = "frame-ancestors *;"
+    return response
